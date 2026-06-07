@@ -1,0 +1,36 @@
+# Mac OS
+.DS_Store
+
+# Go Binaries and Test Outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go Workspace
+go.work
+go.work.sum
+
+# Python Virtual Environments & Caches
+venv/
+.env/
+env/
+__pycache__/
+*.pyc
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+
+# Project Specific Output Files
+# Ignore generated metrics, charts, and logs so they don't bloat the repo
+*.csv
+*.log
+*.png
+*.pdf
+/data/
+/output/
