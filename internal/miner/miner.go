@@ -2,6 +2,8 @@ package miner
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"runtime"
 	"time"
@@ -56,14 +58,17 @@ func (m *Miner) Start(ctx context.Context) {
 			if err != nil {
 				diff = 1.0
 			}
+			bodyStr := fmt.Sprintf("Mined by %s at height %d", m.ID, currentHeight+1)
+			digestHash := sha256.Sum256([]byte(bodyStr))
 
 			block := &core.Block{
 				Header: core.BlockHeader{
 					Parent:     parentHash,
+					Digest:     hex.EncodeToString(digestHash[:]), // FIX: Cryptographically link the body
 					Difficulty: diff,
 					Nonce:      0,
 				},
-				Body: fmt.Sprintf("Mined by %s at height %d", m.ID, currentHeight+1),
+				Body: bodyStr,
 			}
 
 		MiningLoop:

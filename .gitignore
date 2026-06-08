@@ -15,7 +15,7 @@ go.work
 go.work.sum
 
 # Python Virtual Environments & Caches
-venv/
+*venv/
 .env/
 env/
 __pycache__/
@@ -30,7 +30,6 @@ __pycache__/
 # Ignore generated metrics, charts, and logs so they don't bloat the repo
 *.csv
 *.log
-*.png
 *.pdf
 /data/
 /output/
