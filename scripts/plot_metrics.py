@@ -221,6 +221,136 @@ def plot_a_vs_b_block_time(df_a, df_b):
     plt.close(fig)
     print(f"  ✓ Saved: {out_path}")
 
+# ---------------------------------------------------------------------------
+# Plot 5: Selfish Mining Experiment vs R
+# ---------------------------------------------------------------------------
+
+def plot_selfish_results():
+    results_path = os.path.join(OUTPUT_DIR, 'selfish_results.json')
+    if not os.path.exists(results_path):
+        print("  ⚠ Skipping Selfish Mining plots — selfish_results.json not found.")
+        return
+
+    with open(results_path, 'r') as f:
+        results = json.load(f)
+
+    if not results:
+        print("  ⚠ Skipping Selfish Mining plots — selfish_results.json is empty.")
+        return
+
+    # Extract data
+    R = [r['r'] for r in results]
+    avg_block_time = [r['avg_block_time_ms'] for r in results]
+    attacker_share = [r['attacker_share'] * 100 for r in results]
+    chain_quality = [r['chain_quality'] * 100 for r in results]
+    forks = [r['forks'] for r in results]
+    discarded = [r['discarded_blocks'] for r in results]
+    waste_rate = [r['waste_rate'] * 100 for r in results]
+
+    # Print Table to console
+    print("\n" + "="*80)
+    print("                 SELFISH MINING EXPERIMENT RESULTS (α = 35%)")
+    print("="*80)
+    print(f"{'R (Epoch)':<12} | {'Avg Time (ms)':<15} | {'Att Share (%)':<15} | {'Chain Quality':<15} | {'Forks':<6} | {'Waste (%)':<10}")
+    print("-"*80)
+    for r in results:
+        print(f"{r['r']:<12} | {r['avg_block_time_ms']:<15.2f} | {r['attacker_share']*100:<15.2f} | {r['chain_quality']*100:<15.2f} | {r['forks']:<6} | {r['waste_rate']*100:<10.2f}")
+    print("="*80 + "\n")
+
+    # Generate Plots
+    # 1. Attacker Share & Chain Quality vs R
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    ax.plot(R, attacker_share, marker='o', color='#d62728', linewidth=2.5, label="Attacker's Share of Main Chain Blocks")
+    ax.plot(R, chain_quality, marker='s', color='#2ca02c', linewidth=2.5, label="Chain Quality (Honest Miner Share)")
+    ax.axhline(y=35, color='#d62728', linestyle='--', alpha=0.6, label="Attacker Hashrate Share (α = 35%)")
+    ax.axhline(y=65, color='#2ca02c', linestyle='--', alpha=0.6, label="Honest Hashrate Share (1 - α = 65%)")
+    ax.set_title("Block Distribution & Chain Quality vs. Difficulty Retargeting Interval (R)", fontsize=13, fontweight='bold', pad=15)
+    ax.set_xlabel("Epoch Length R (Blocks between difficulty retargets)", labelpad=10)
+    ax.set_ylabel("Percentage (%)", labelpad=10)
+    ax.set_xticks(R)
+    ax.set_ylim(0, 100)
+    ax.legend(loc="best", framealpha=0.9)
+    fig.tight_layout()
+    out_path1 = os.path.join(OUTPUT_DIR, 'selfish_attacker_share.png')
+    fig.savefig(out_path1, dpi=300)
+    plt.close(fig)
+    print(f"  ✓ Saved: {out_path1}")
+
+    # 2. Waste Rate & Orphan Blocks vs R
+    fig, ax1 = plt.subplots(figsize=(10, 5.5))
+    color = '#1f77b4'
+    ax1.set_xlabel("Epoch Length R (Blocks between difficulty retargets)", labelpad=10)
+    ax1.set_ylabel("Discarded (Orphan) Blocks Count", color=color, labelpad=10)
+    bars = ax1.bar(R, discarded, color=color, alpha=0.4, width=2.0, label="Discarded Blocks")
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.set_xticks(R)
+    for bar in bars:
+        height = bar.get_height()
+        ax1.annotate(f'{int(height)}',
+                     xy=(bar.get_x() + bar.get_width() / 2, height),
+                     xytext=(0, 3),
+                     textcoords="offset points",
+                     ha='center', va='bottom', fontsize=9, color=color, fontweight='bold')
+
+    ax2 = ax1.twinx()
+    color = '#ff7f0e'
+    ax2.set_ylabel("Network Hash Power Waste Rate (%)", color=color, labelpad=10)
+    ax2.plot(R, waste_rate, color=color, marker='o', linewidth=2.5, label="Waste Rate (%)")
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim(0, max(waste_rate) * 1.3 if max(waste_rate) > 0 else 10)
+    for x, y in zip(R, waste_rate):
+        ax2.annotate(f'{y:.2f}%',
+                     xy=(x, y),
+                     xytext=(0, 8),
+                     textcoords="offset points",
+                     ha='center', va='bottom', fontsize=9, color=color, fontweight='bold')
+    plt.title("Orphan Blocks & Hash Power Waste Rate vs. Retargeting Interval (R)", fontsize=13, fontweight='bold', pad=15)
+    fig.tight_layout()
+    out_path2 = os.path.join(OUTPUT_DIR, 'selfish_waste_rate.png')
+    fig.savefig(out_path2, dpi=300)
+    plt.close(fig)
+    print(f"  ✓ Saved: {out_path2}")
+
+    # 3. Forks vs R
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    ax.plot(R, forks, marker='D', color='#9467bd', linewidth=2.5, label="Total Forks Created")
+    for x, y in zip(R, forks):
+        ax.annotate(f'{y}',
+                     xy=(x, y),
+                     xytext=(0, 8),
+                     textcoords="offset points",
+                     ha='center', va='bottom', fontsize=10, fontweight='bold', color='#9467bd')
+    ax.set_title("Total Forks Created vs. Difficulty Retargeting Interval (R)", fontsize=13, fontweight='bold', pad=15)
+    ax.set_xlabel("Epoch Length R (Blocks between difficulty retargets)", labelpad=10)
+    ax.set_ylabel("Forks Count", labelpad=10)
+    ax.set_xticks(R)
+    ax.set_ylim(0, max(forks) * 1.3 if max(forks) > 0 else 5)
+    fig.tight_layout()
+    out_path3 = os.path.join(OUTPUT_DIR, 'selfish_forks.png')
+    fig.savefig(out_path3, dpi=300)
+    plt.close(fig)
+    print(f"  ✓ Saved: {out_path3}")
+
+    # 4. Average Block Generation Time vs R
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    ax.plot(R, avg_block_time, marker='^', color='#17becf', linewidth=2.5, label="Average Block Production Time")
+    for x, y in zip(R, avg_block_time):
+        ax.annotate(f'{y:.2f} ms',
+                     xy=(x, y),
+                     xytext=(0, 8),
+                     textcoords="offset points",
+                     ha='center', va='bottom', fontsize=9, fontweight='bold', color='#17becf')
+    ax.set_title("Average Block Production Time vs. Difficulty Retargeting Interval (R)", fontsize=13, fontweight='bold', pad=15)
+    ax.set_xlabel("Epoch Length R (Blocks between difficulty retargets)", labelpad=10)
+    ax.set_ylabel("Simulated Time (ms)", labelpad=10)
+    ax.set_xticks(R)
+    ax.set_ylim(0, max(avg_block_time) * 1.3 if max(avg_block_time) > 0 else 20)
+    fig.tight_layout()
+    out_path4 = os.path.join(OUTPUT_DIR, 'selfish_block_time.png')
+    fig.savefig(out_path4, dpi=300)
+    plt.close(fig)
+    print(f"  ✓ Saved: {out_path4}")
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -237,5 +367,6 @@ if __name__ == '__main__':
     plot_exp_b_difficulty(df_exp_b)
     plot_exp_b_generation_time(df_exp_b)
     plot_a_vs_b_block_time(df_exp_a, df_exp_b)
+    plot_selfish_results()
 
     print("\n✅ All plots generated. Check the results/ directory.")
