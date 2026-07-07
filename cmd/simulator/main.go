@@ -2,17 +2,13 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
 
 	"github.com/MohammadAminKoohi/ChainSim/internal/simulation"
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
 	fmt.Println("=======================================")
-	fmt.Println("         Block Chain Simulator          ")
+	fmt.Println("       ChainSim — Bitcoin Simulator    ")
 	fmt.Println("=======================================")
 
 	simulation.RunExperimentA()
