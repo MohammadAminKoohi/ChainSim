@@ -1,0 +1,52 @@
+[
+  {
+    "r": 3,
+    "avg_block_time_ms": 1256.474,
+    "attacker_share": 0.422,
+    "attacker_revenue": 0.422,
+    "chain_quality": 0.5780000000000001,
+    "forks": 1,
+    "discarded_blocks": 1,
+    "waste_rate": 0.001996007984031936
+  },
+  {
+    "r": 6,
+    "avg_block_time_ms": 1068.022,
+    "attacker_share": 0.404,
+    "attacker_revenue": 0.404,
+    "chain_quality": 0.596,
+    "forks": 2,
+    "discarded_blocks": 3,
+    "waste_rate": 0.005964214711729622
+  },
+  {
+    "r": 12,
+    "avg_block_time_ms": 818.256,
+    "attacker_share": 0.384,
+    "attacker_revenue": 0.384,
+    "chain_quality": 0.616,
+    "forks": 4,
+    "discarded_blocks": 7,
+    "waste_rate": 0.013806706114398421
+  },
+  {
+    "r": 24,
+    "avg_block_time_ms": 474.5768463073852,
+    "attacker_share": 0.36926147704590817,
+    "attacker_revenue": 0.36926147704590817,
+    "chain_quality": 0.6307385229540918,
+    "forks": 12,
+    "discarded_blocks": 24,
+    "waste_rate": 0.045714285714285714
+  },
+  {
+    "r": 48,
+    "avg_block_time_ms": 33.199600798403196,
+    "attacker_share": 0.3772455089820359,
+    "attacker_revenue": 0.3772455089820359,
+    "chain_quality": 0.6227544910179641,
+    "forks": 24,
+    "discarded_blocks": 49,
+    "waste_rate": 0.0890909090909091
+  }
+]

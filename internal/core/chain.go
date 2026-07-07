@@ -2,19 +2,15 @@ package core
 
 import (
 	"errors"
+	"math/rand"
+	"strings"
 	"sync"
 )
 
 const (
-	// DifficultyEpoch is the number of blocks between difficulty adjustments.
-	DifficultyEpoch = 3
 	// TargetTimePerBlock is the target time per block in milliseconds.
 	TargetTimePerBlock = 1000
-	// EpochTargetDuration is the total target time for one epoch.
-	EpochTargetDuration = DifficultyEpoch * TargetTimePerBlock
 	// MaxAdjustmentFactor caps the difficulty adjustment to prevent extreme swings.
-	// With a small epoch of 3 blocks, PoW variance is high — a tight clamp
-	// prevents wild oscillation and helps convergence toward 1s/block.
 	MaxAdjustmentFactor = 2
 	// MinAdjustmentFactor is the floor for difficulty adjustment.
 	MinAdjustmentFactor = 0.5
@@ -31,18 +27,68 @@ type BlockNode struct {
 
 // BlockChain is a thread-safe tree of blocks implementing Nakamoto consensus.
 type BlockChain struct {
-	mu          sync.RWMutex
-	nodes       map[string]*BlockNode
-	heaviestTip *BlockNode
+	mu                 sync.RWMutex
+	nodes              map[string]*BlockNode
+	heaviestTip        *BlockNode
+	Gamma              float64
+	randSource         *rand.Rand
+	EpochLength        uint64
+	TargetTimePerBlock int64
 }
 
 // NewBlockChain creates a new chain seeded with the given genesis block.
 func NewBlockChain(genesis *Block) (*BlockChain, error) {
 	bc := &BlockChain{
-		nodes: make(map[string]*BlockNode),
+		nodes:              make(map[string]*BlockNode),
+		Gamma:              0.5,
+		randSource:         rand.New(rand.NewSource(42)),
+		EpochLength:        3,
+		TargetTimePerBlock: 1000,
 	}
 	err := bc.AddBlock(genesis)
 	return bc, err
+}
+
+// Copy returns a deep copy of the BlockChain tree.
+func (bc *BlockChain) Copy() *BlockChain {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	newBC := &BlockChain{
+		nodes:              make(map[string]*BlockNode),
+		Gamma:              bc.Gamma,
+		randSource:         rand.New(rand.NewSource(42)),
+		EpochLength:        bc.EpochLength,
+		TargetTimePerBlock: bc.TargetTimePerBlock,
+	}
+
+	for hash, node := range bc.nodes {
+		newBC.nodes[hash] = &BlockNode{
+			Hash:           node.Hash,
+			Block:          node.Block.Copy(),
+			Height:         node.Height,
+			CumulativeDiff: node.CumulativeDiff,
+		}
+	}
+
+	for hash, node := range bc.nodes {
+		if node.Parent != nil {
+			newBC.nodes[hash].Parent = newBC.nodes[node.Parent.Hash]
+		}
+	}
+
+	if bc.heaviestTip != nil {
+		newBC.heaviestTip = newBC.nodes[bc.heaviestTip.Hash]
+	}
+
+	return newBC
+}
+
+func (bc *BlockChain) shouldSwitchOnRace() bool {
+	if bc.randSource == nil {
+		bc.randSource = rand.New(rand.NewSource(42))
+	}
+	return bc.randSource.Float64() < bc.Gamma
 }
 
 // AddBlock validates and inserts a block into the tree.
@@ -50,7 +96,8 @@ func NewBlockChain(genesis *Block) (*BlockChain, error) {
 func (bc *BlockChain) AddBlock(b *Block) error {
 	hash := b.Hash()
 
-	if !IsValidPoW(hash, b.Header.Difficulty) {
+	// Genesis block (parent is "") bypasses PoW check.
+	if b.Header.Parent != "" && !IsValidPoW(hash, b.Header.Difficulty) {
 		return errors.New("invalid proof of work")
 	}
 
@@ -90,9 +137,20 @@ func (bc *BlockChain) AddBlock(b *Block) error {
 
 	bc.nodes[hash] = node
 
-	// Update heaviest tip (highest cumulative difficulty wins).
-	if bc.heaviestTip == nil || node.CumulativeDiff > bc.heaviestTip.CumulativeDiff {
+	// Update heaviest tip.
+	if bc.heaviestTip == nil {
 		bc.heaviestTip = node
+	} else if node.CumulativeDiff > bc.heaviestTip.CumulativeDiff {
+		bc.heaviestTip = node
+	} else if node.CumulativeDiff == bc.heaviestTip.CumulativeDiff {
+		// Tie-breaking for Selfish Mining:
+		if strings.Contains(node.Block.Body, "[lead>=2]") {
+			bc.heaviestTip = node
+		} else if strings.Contains(node.Block.Body, "[lead=1]") {
+			if bc.shouldSwitchOnRace() {
+				bc.heaviestTip = node
+			}
+		}
 	}
 
 	return nil
@@ -117,7 +175,7 @@ func (bc *BlockChain) GetAllNodes() map[string]*BlockNode {
 }
 
 // CalculateNextDifficulty computes the difficulty for a new block building on parentHash.
-// Difficulty adjusts every DifficultyEpoch blocks, clamped by [MinAdjustmentFactor, MaxAdjustmentFactor].
+// Difficulty adjusts every EpochLength blocks, clamped by [MinAdjustmentFactor, MaxAdjustmentFactor].
 func (bc *BlockChain) CalculateNextDifficulty(parentHash string) (float64, error) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
@@ -128,15 +186,19 @@ func (bc *BlockChain) CalculateNextDifficulty(parentHash string) (float64, error
 	}
 
 	nextHeight := parent.Height + 1
+	epochLength := bc.EpochLength
+	if epochLength == 0 {
+		epochLength = 3
+	}
 
 	// Only adjust at epoch boundaries.
-	if nextHeight%DifficultyEpoch != 0 {
+	if nextHeight%epochLength != 0 {
 		return parent.Block.Header.Difficulty, nil
 	}
 
-	// Walk back up to DifficultyEpoch steps to find the ancestor starting this epoch.
+	// Walk back up to epochLength steps to find the ancestor starting this epoch.
 	ancestor := parent
-	for i := 0; i < DifficultyEpoch; i++ {
+	for i := uint64(0); i < epochLength; i++ {
 		if ancestor.Parent == nil {
 			break
 		}
@@ -153,7 +215,11 @@ func (bc *BlockChain) CalculateNextDifficulty(parentHash string) (float64, error
 		return parent.Block.Header.Difficulty, nil
 	}
 
-	targetDuration := int64(numIntervals) * TargetTimePerBlock
+	targetTime := bc.TargetTimePerBlock
+	if targetTime <= 0 {
+		targetTime = 1000
+	}
+	targetDuration := int64(numIntervals) * targetTime
 
 	// ratio = target_time / actual_time
 	ratio := float64(targetDuration) / float64(actualDuration)
